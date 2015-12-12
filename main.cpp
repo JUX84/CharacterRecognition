@@ -13,26 +13,25 @@ using namespace cv;
 using namespace cv::ml;
 
 #ifdef _WIN32
-	#define PATH_SEPARATOR "\\"
+#define PATH_SEPARATOR "\\"
 #else
-	#define PATH_SEPARATOR "/"
+#define PATH_SEPARATOR "/"
 #endif
 
-#define SIZE 16
-#define ATTRIBUTES SIZE*SIZE
-#define CLASSES 62
-#define SAMPLES 1016
-#define TOTAL_SAMPLES CLASSES*SAMPLES
-#define TRAINING_SAMPLES (int)(TOTAL_SAMPLES*0.7)//Number of samples in training dataset
-#define TEST_SAMPLES TOTAL_SAMPLES-TRAINING_SAMPLES       //Number of samples in test dataset
+#define SIZE 32											// Size (Width & Height) of image
+#define ATTRIBUTES SIZE*SIZE							// Number of attributes
+#define CLASSES 36										// Number of classes
+#define SAMPLES 500										// Number of sample by class
+#define TOTAL_SAMPLES CLASSES*SAMPLES					// Total number of samples
+#define TRAINING_SAMPLES (int)(TOTAL_SAMPLES*0.7)		//Number of samples in training dataset
+#define TEST_SAMPLES TOTAL_SAMPLES-TRAINING_SAMPLES		//Number of samples in test dataset
 
 int train_errors = 0, test_errors = 0;
 
 /********************************************************************************
-This function will read the csv files(training and test dataset) and convert them
-into two matrices. classes matrix have 10 columns, one column for each class label. If the label of nth row in data matrix
-is, lets say 5 then the value of classes[n][5] = 1.
-********************************************************************************/
+  This function will read the csv files(training and test dataset) and convert them
+  into two matrices.
+ ********************************************************************************/
 void readDataset(std::string filename, cv::Mat &data, cv::Mat &classes, int total_samples)
 {
 	std::cout << "Reading dataset " << filename << '\n';
@@ -56,26 +55,11 @@ void readDataset(std::string filename, cv::Mat &data, cv::Mat &classes, int tota
 				//make the value of label column in that row as 1.
 				fscanf(inputfile, "%i", &label);
 				classes.at<float>(row, label) = 1.0;
-
 			}
 		}
 	}
-
 	fclose(inputfile);
 	std::cout << "Reading finished!\n";
-}
-
-void scaleDownImage(cv::Mat &originalImg, cv::Mat &scaledDownImage)
-{
-	for (int x = 0; x<SIZE; x++)
-	{
-		for (int y = 0; y<SIZE; y++)
-		{
-			int yd = ceil((float)(y*originalImg.cols / SIZE));
-			int xd = ceil((float)(x*originalImg.rows / SIZE));
-			scaledDownImage.at<uchar>(x, y) = originalImg.at<uchar>(xd, yd);
-		}
-	}
 }
 
 bool cropImage(cv::Mat &originalImage, cv::Mat &croppedImage)
@@ -84,10 +68,7 @@ bool cropImage(cv::Mat &originalImage, cv::Mat &croppedImage)
 	int col = originalImage.cols;
 	int tlx, tly, bry, brx;//t=top r=right b=bottom l=left
 	tlx = tly = bry = brx = 0;
-	float suml = 0;
-	float sumr = 0;
 	int flag = 0;
-
 	/**************************top edge***********************/
 	for (int x = 1; x<row; x++)
 	{
@@ -125,7 +106,6 @@ bool cropImage(cv::Mat &originalImage, cv::Mat &croppedImage)
 		}
 	}
 	/*************************left edge*******************************/
-
 	for (int y = 0; y<col; y++)
 	{
 		for (int x = 0; x<row; x++)
@@ -143,9 +123,7 @@ bool cropImage(cv::Mat &originalImage, cv::Mat &croppedImage)
 			break;
 		}
 	}
-
 	/**********************right edge***********************************/
-
 	for (int y = col - 1; y>0; y--)
 	{
 		for (int x = 0; x<row; x++)
@@ -180,9 +158,7 @@ void convertToPixelValueArray(cv::Mat &img, int pixelarray[])
 		{
 			pixelarray[i] = (img.at<uchar>(x, y) == 255) ? 1 : 0;
 			i++;
-
 		}
-
 	}
 }
 
@@ -210,7 +186,7 @@ void readData(std::string path, int samples_nb1, int samples_nb2) {
 			Mat output;
 			blur(img, output, Size(5, 5));
 			threshold(output, output, 50, 255, 0);
-			Mat scaledDownImage(SIZE, SIZE, CV_8U, Scalar(0));
+			Mat scaledDownImage(SIZE, SIZE, CV_16U, Scalar(0));
 			int pixelValueArray[ATTRIBUTES];
 			if (!cropImage(output, output)) {
 				if (j <= (int)(samples_nb2*0.7))
@@ -219,7 +195,7 @@ void readData(std::string path, int samples_nb1, int samples_nb2) {
 					++test_errors;
 				continue;
 			}
-			scaleDownImage(output, scaledDownImage);
+			resize(output, scaledDownImage, scaledDownImage.size());
 			convertToPixelValueArray(scaledDownImage, pixelValueArray);
 			for (int k = 0; k < ATTRIBUTES; ++k) {
 				if (j <= (int)(samples_nb2*0.7))
@@ -305,7 +281,7 @@ void createAndTestMLP() {
 
 		model->predict(test_sample, classificationResult);
 		/*The classification result matrix holds weightage  of each class.
-		we take the class with the highest weightage as the resultant class */
+		  we take the class with the highest weightage as the resultant class */
 
 		// find the class with maximum weightage.
 		int maxIndex = 0;
@@ -321,27 +297,34 @@ void createAndTestMLP() {
 			}
 		}
 
-		std::cout << "Testing sample # " << tsample << " -> result: " << get(maxIndex);
+		char c = get(maxIndex);
+
+		std::cout << "Testing sample # " << tsample << " -> result: " << c;
 
 		//Now compare the predicted class to the actural class. if the prediction is correct then\
-				            //test_set_classifications[tsample][ maxIndex] should be 1.
-//if the classification is wrong, note that.
+		//test_set_classifications[tsample][ maxIndex] should be 1.
+		//if the classification is wrong, note that.
 		if (test_set_classifications.at<float>(tsample, maxIndex) != 1.0f)
 		{
-			// if they differ more than floating point error => wrong class
-			wrong_class++;
 			//find the actual label 'class_index'
-			for (int class_index = 0; class_index<CLASSES; class_index++)
+			int class_index = 0;
+			for (; class_index<CLASSES; class_index++)
 			{
 				if (test_set_classifications.at<float>(tsample, class_index) == 1.0f)
 				{
-					std::cout << " instead of " << get(class_index);
+					char tmp = get(class_index);
+					std::cout << " instead of " << tmp;
+					if (c == tmp - 32 || c == tmp + 32) {
+						std::cout << " - OK !";
+						correct_class++;
+					} else {
+						// if they differ more than floating point error => wrong class
+						wrong_class++;
+					}
 					break;
 				}
 			}
-
-		}
-		else {
+		} else {
 			// otherwise correct
 			correct_class++;
 		}
@@ -349,24 +332,24 @@ void createAndTestMLP() {
 	}
 
 	printf("\nResults on the testing dataset\n"
-		"\tCorrect classification: %d (%g%%)\n"
-		"\tWrong classifications: %d (%g%%)\n",
-		correct_class, (double)correct_class * 100 / (TEST_SAMPLES-test_errors),
-		wrong_class, (double)wrong_class * 100 / (TEST_SAMPLES-test_errors));
+			"\tCorrect classification: %d (%g%%)\n"
+			"\tWrong classifications: %d (%g%%)\n",
+			correct_class, (double)correct_class * 100 / (TEST_SAMPLES-test_errors),
+			wrong_class, (double)wrong_class * 100 / (TEST_SAMPLES-test_errors));
 }
 
 void testMLP() {
 	Ptr<ANN_MLP> model = StatModel::load<ANN_MLP>("ann_mlp.mdl");
 
-	Mat img = imread("d.png", 0);
+	Mat img = imread("letter.png", 0);
 	Mat output;
 	blur(img, output, Size(5, 5));
 	threshold(output, output, 50, 255, 0);
-	Mat scaledDownImage(SIZE, SIZE, CV_8U, Scalar(0));
+	Mat scaledDownImage(SIZE, SIZE, CV_16U, Scalar(0));
 	int pixelValueArray[ATTRIBUTES];
 	Mat sample(1, ATTRIBUTES, CV_32F);
 	if (cropImage(output, output)) {
-		scaleDownImage(output, scaledDownImage);
+		resize(output, scaledDownImage, scaledDownImage.size());
 		convertToPixelValueArray(scaledDownImage, pixelValueArray);
 		for (int k = 0; k < ATTRIBUTES; ++k) {
 			sample.at<float>(0, k) = pixelValueArray[k];
