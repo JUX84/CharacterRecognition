@@ -8,7 +8,6 @@
 #include <iostream>
 #include <fstream>
 
-using namespace std;
 using namespace cv;
 using namespace cv::ml;
 
@@ -20,11 +19,11 @@ using namespace cv::ml;
 
 #define SIZE 32											// Size (Width & Height) of image
 #define ATTRIBUTES SIZE*SIZE							// Number of attributes
-#define CLASSES 36										// Number of classes
-#define SAMPLES 500										// Number of sample by class
+#define CLASSES 62										// Number of classes
+#define SAMPLES 50										// Number of sample by class
 #define TOTAL_SAMPLES CLASSES*SAMPLES					// Total number of samples
-#define TRAINING_SAMPLES (int)(TOTAL_SAMPLES*0.7)		//Number of samples in training dataset
-#define TEST_SAMPLES TOTAL_SAMPLES-TRAINING_SAMPLES		//Number of samples in test dataset
+#define TRAINING_SAMPLES (int)(TOTAL_SAMPLES*0.7)		// Number of samples in training dataset
+#define TEST_SAMPLES TOTAL_SAMPLES-TRAINING_SAMPLES		// Number of samples in test dataset
 
 int train_errors = 0, test_errors = 0;
 
@@ -32,7 +31,7 @@ int train_errors = 0, test_errors = 0;
   This function will read the csv files(training and test dataset) and convert them
   into two matrices.
  ********************************************************************************/
-void readDataset(std::string filename, cv::Mat &data, cv::Mat &classes, int total_samples)
+void readDataset(std::string filename, Mat &data, Mat &classes, int total_samples)
 {
 	std::cout << "Reading dataset " << filename << '\n';
 	int label;
@@ -62,7 +61,7 @@ void readDataset(std::string filename, cv::Mat &data, cv::Mat &classes, int tota
 	std::cout << "Reading finished!\n";
 }
 
-bool cropImage(cv::Mat &originalImage, cv::Mat &croppedImage)
+bool cropImage(Mat &originalImage, Mat &croppedImage)
 {
 	int row = originalImage.rows;
 	int col = originalImage.cols;
@@ -145,21 +144,8 @@ bool cropImage(cv::Mat &originalImage, cv::Mat &croppedImage)
 	int height = bry - tly;
 	if (width == 0 || height == 0)
 		return false;
-	croppedImage = originalImage(cv::Rect(tlx, tly, width, height));
+	croppedImage = originalImage(Rect(tlx, tly, width, height));
 	return true;
-}
-
-void convertToPixelValueArray(cv::Mat &img, int pixelarray[])
-{
-	int i = 0;
-	for (int x = 0; x<SIZE; x++)
-	{
-		for (int y = 0; y<SIZE; y++)
-		{
-			pixelarray[i] = (img.at<uchar>(x, y) == 255) ? 1 : 0;
-			i++;
-		}
-	}
 }
 
 std::string getFilename(int i, int j) {
@@ -176,32 +162,35 @@ std::string getFilename(int i, int j) {
 
 void readData(std::string path, int samples_nb1, int samples_nb2) {
 	std::cout << "Reading data from " << path << "/\n";
-	ofstream training("training.dat");
-	ofstream test("test.dat");
+	std::ofstream training("training.dat");
+	std::ofstream test("test.dat");
 	for (int i = 1; i <= samples_nb1; ++i) {
 		for (int j = 1; j <= samples_nb2; ++j) {
 			std::string imagePath = path + PATH_SEPARATOR + getFilename(i, j);
 			//std::cout << imagePath << std::endl;
 			Mat img = imread(imagePath, 0);
 			Mat output;
-			blur(img, output, Size(5, 5));
+			GaussianBlur(img, output, Size(5, 5), 0);
 			threshold(output, output, 50, 255, 0);
-			Mat scaledDownImage(SIZE, SIZE, CV_16U, Scalar(0));
-			int pixelValueArray[ATTRIBUTES];
+			Mat scaledDownImage(SIZE, SIZE, CV_32F, Scalar(0));
 			if (!cropImage(output, output)) {
 				if (j <= (int)(samples_nb2*0.7))
 					++train_errors;
 				else
 					++test_errors;
+				std::cout << "Error while processing " << imagePath << std::endl;
 				continue;
 			}
 			resize(output, scaledDownImage, scaledDownImage.size());
-			convertToPixelValueArray(scaledDownImage, pixelValueArray);
-			for (int k = 0; k < ATTRIBUTES; ++k) {
-				if (j <= (int)(samples_nb2*0.7))
-					training << pixelValueArray[k] << ",";
-				else
-					test << pixelValueArray[k] << ",";
+			for (int x = 0; x<SIZE; x++)
+			{
+				for (int y = 0; y<SIZE; y++)
+				{
+					if (j <= (int)(samples_nb2*0.7))
+						training << ((scaledDownImage.at<uchar>(x, y) == 255) ? 1 : 0) << ",";
+					else
+						test << ((scaledDownImage.at<uchar>(x, y) == 255) ? 1 : 0) << ",";
+				}
 			}
 			if (j <= (int)(samples_nb2*0.7))
 				training << (i - 1) << "\n";
@@ -211,7 +200,7 @@ void readData(std::string path, int samples_nb1, int samples_nb2) {
 	}
 	training.close();
 	test.close();
-	std::cout << "Finished reading!\n";
+	std::cout << "Reading finished!\n";
 }
 
 char get(int v) {
@@ -224,16 +213,15 @@ char get(int v) {
 
 void createAndTestMLP() {
 	//matrix to hold the training sample
-	cv::Mat training_set(TRAINING_SAMPLES-train_errors, ATTRIBUTES, CV_32F);
+	Mat training_set(TRAINING_SAMPLES-train_errors, ATTRIBUTES, CV_32F);
 	//matrix to hold the labels of each taining sample
-	cv::Mat training_set_classifications(TRAINING_SAMPLES-train_errors, CLASSES, CV_32F);
+	Mat training_set_classifications(TRAINING_SAMPLES-train_errors, CLASSES, CV_32F);
 	//matric to hold the test samples
-	cv::Mat test_set(TEST_SAMPLES-test_errors, ATTRIBUTES, CV_32F);
+	Mat test_set(TEST_SAMPLES-test_errors, ATTRIBUTES, CV_32F);
 	//matrix to hold the test labels.
-	cv::Mat test_set_classifications(TEST_SAMPLES-test_errors, CLASSES, CV_32F);
+	Mat test_set_classifications(TEST_SAMPLES-test_errors, CLASSES, CV_32F);
 
-	//
-	cv::Mat classificationResult(1, CLASSES, CV_32F);
+	Mat classificationResult(1, CLASSES, CV_32F);
 	//load the training and test data sets.
 	readDataset("training.dat", training_set, training_set_classifications, TRAINING_SAMPLES-train_errors);
 	readDataset("test.dat", test_set, test_set_classifications, TEST_SAMPLES-test_errors);
@@ -243,7 +231,7 @@ void createAndTestMLP() {
 	// - one input node per attribute in a sample so 256 input nodes
 	// - 16 hidden nodes
 	// - 10 output node, one for each class.
-	cv::Mat layers(3, 1, CV_32S);
+	Mat layers(3, 1, CV_32S);
 	layers.at<int>(0, 0) = ATTRIBUTES;//input layer
 	layers.at<int>(1, 0) = 16;//hidden layer
 	layers.at<int>(2, 0) = CLASSES;//output layer
@@ -265,7 +253,7 @@ void createAndTestMLP() {
 	model->save("ann_mlp.mdl");
 
 	// Test the generated model with the test samples.
-	cv::Mat test_sample;
+	Mat test_sample;
 	//count of correct classifications
 	int correct_class = 0;
 	//count of wrong classifications
@@ -331,11 +319,13 @@ void createAndTestMLP() {
 		std::cout << '\n';
 	}
 
-	printf("\nResults on the testing dataset\n"
-			"\tCorrect classification: %d (%g%%)\n"
-			"\tWrong classifications: %d (%g%%)\n",
-			correct_class, (double)correct_class * 100 / (TEST_SAMPLES-test_errors),
-			wrong_class, (double)wrong_class * 100 / (TEST_SAMPLES-test_errors));
+	double correct_rate = correct_class * 100.0 / (TEST_SAMPLES-test_errors);
+	double wrong_rate = wrong_class * 100.0 / (TEST_SAMPLES-test_errors);
+	std::cout << "\nResults:";
+	std::cout << "\n\tCorrect: " << correct_class << " (";
+	std::cout << correct_rate << "%)";
+	std::cout << "\n\tWrong: " << wrong_class << " (";
+	std::cout << wrong_rate << "%)";
 }
 
 void testMLP() {
@@ -343,19 +333,22 @@ void testMLP() {
 
 	Mat img = imread("letter.png", 0);
 	Mat output;
-	blur(img, output, Size(5, 5));
+	GaussianBlur(img, output, Size(5, 5), 0);
 	threshold(output, output, 50, 255, 0);
-	Mat scaledDownImage(SIZE, SIZE, CV_16U, Scalar(0));
-	int pixelValueArray[ATTRIBUTES];
+	Mat scaledDownImage(SIZE, SIZE, CV_32F, Scalar(0));
 	Mat sample(1, ATTRIBUTES, CV_32F);
 	if (cropImage(output, output)) {
 		resize(output, scaledDownImage, scaledDownImage.size());
-		convertToPixelValueArray(scaledDownImage, pixelValueArray);
-		for (int k = 0; k < ATTRIBUTES; ++k) {
-			sample.at<float>(0, k) = pixelValueArray[k];
+		int i = 0;
+		for (int x = 0; x<SIZE; x++)
+		{
+			for (int y = 0; y<SIZE; y++)
+			{
+				sample.at<float>(0, i++) = ((scaledDownImage.at<uchar>(x, y) == 255) ? 1 : 0);
+			}
 		}
 		int result = model->predict(sample);
-		std::cout << get(result) << std::endl;
+		std::cout << "Prediction: " << get(result) << std::endl;
 	}
 }
 
@@ -363,7 +356,6 @@ int main(int argc, char *argv[])
 {
 	readData("data", CLASSES, SAMPLES);
 	createAndTestMLP();
-	testMLP();
-	while (1);
+	//testMLP();
 	return 0;
 }
