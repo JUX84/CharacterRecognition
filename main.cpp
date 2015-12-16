@@ -20,7 +20,7 @@ using namespace cv::ml;
 #define SIZE 32											// Size (Width & Height) of image
 #define ATTRIBUTES SIZE*SIZE							// Number of attributes
 #define CLASSES 62										// Number of classes
-#define SAMPLES 50										// Number of sample by class
+#define SAMPLES 200										// Number of sample by class
 #define TOTAL_SAMPLES CLASSES*SAMPLES					// Total number of samples
 #define TRAINING_SAMPLES (int)(TOTAL_SAMPLES*0.7)		// Number of samples in training dataset
 #define TEST_SAMPLES TOTAL_SAMPLES-TRAINING_SAMPLES		// Number of samples in test dataset
@@ -172,7 +172,6 @@ void readData(std::string path, int samples_nb1, int samples_nb2) {
 			Mat output;
 			GaussianBlur(img, output, Size(5, 5), 0);
 			threshold(output, output, 50, 255, 0);
-			Mat scaledDownImage(SIZE, SIZE, CV_32F, Scalar(0));
 			if (!cropImage(output, output)) {
 				if (j <= (int)(samples_nb2*0.7))
 					++train_errors;
@@ -181,6 +180,7 @@ void readData(std::string path, int samples_nb1, int samples_nb2) {
 				std::cout << "Error while processing " << imagePath << std::endl;
 				continue;
 			}
+			Mat scaledDownImage(SIZE, SIZE, CV_16U, Scalar(0));
 			resize(output, scaledDownImage, scaledDownImage.size());
 			for (int x = 0; x<SIZE; x++)
 			{
@@ -212,13 +212,10 @@ char get(int v) {
 }
 
 void createAndTestMLP() {
-	//matrix to hold the training sample
 	Mat training_set(TRAINING_SAMPLES-train_errors, ATTRIBUTES, CV_32F);
-	//matrix to hold the labels of each taining sample
 	Mat training_set_classifications(TRAINING_SAMPLES-train_errors, CLASSES, CV_32F);
-	//matric to hold the test samples
+	
 	Mat test_set(TEST_SAMPLES-test_errors, ATTRIBUTES, CV_32F);
-	//matrix to hold the test labels.
 	Mat test_set_classifications(TEST_SAMPLES-test_errors, CLASSES, CV_32F);
 
 	Mat classificationResult(1, CLASSES, CV_32F);
@@ -243,7 +240,6 @@ void createAndTestMLP() {
 	model->setTermCriteria(TermCriteria(CV_TERMCRIT_ITER + CV_TERMCRIT_EPS, 1000, 0.000001));
 	model->setTrainMethod(ANN_MLP::BACKPROP, 0.1, 0.1);
 
-	std::cout << "Creating training data\n";
 	Ptr<TrainData> tdata = TrainData::create(training_set, ROW_SAMPLE, training_set_classifications);
 
 	std::cout << "Training model\n";
@@ -269,7 +265,7 @@ void createAndTestMLP() {
 
 		model->predict(test_sample, classificationResult);
 		/*The classification result matrix holds weightage  of each class.
-		  we take the class with the highest weightage as the resultant class */
+		we take the class with the highest weightage as the resultant class */
 
 		// find the class with maximum weightage.
 		int maxIndex = 0;
@@ -325,37 +321,64 @@ void createAndTestMLP() {
 	std::cout << "\n\tCorrect: " << correct_class << " (";
 	std::cout << correct_rate << "%)";
 	std::cout << "\n\tWrong: " << wrong_class << " (";
-	std::cout << wrong_rate << "%)";
+	std::cout << wrong_rate << "%)\n\n";
 }
 
-void testMLP() {
-	Ptr<ANN_MLP> model = StatModel::load<ANN_MLP>("ann_mlp.mdl");
+void testMLP(std::string path) {
+	Ptr<ANN_MLP> model = Algorithm::load<ANN_MLP>("ann_mlp.mdl");
 
-	Mat img = imread("letter.png", 0);
-	Mat output;
-	GaussianBlur(img, output, Size(5, 5), 0);
-	threshold(output, output, 50, 255, 0);
-	Mat scaledDownImage(SIZE, SIZE, CV_32F, Scalar(0));
-	Mat sample(1, ATTRIBUTES, CV_32F);
-	if (cropImage(output, output)) {
-		resize(output, scaledDownImage, scaledDownImage.size());
-		int i = 0;
-		for (int x = 0; x<SIZE; x++)
-		{
-			for (int y = 0; y<SIZE; y++)
+	Mat original = imread(path, 0), scaledDown(SIZE, SIZE, CV_16U, Scalar(0)), sample(1, ATTRIBUTES, CV_32F), tmp;
+	std::vector<std::vector<Point> > contours;
+	std::vector<Vec4i> hierarchy;
+	namedWindow("Contours", CV_WINDOW_AUTOSIZE);
+	if (original.type() != CV_8UC1)
+		cvtColor(original, tmp, CV_BGR2GRAY);
+	GaussianBlur(original, tmp, Size(5, 5), 0);
+	threshold(tmp, tmp, 50, 255, 0);
+	imshow("Contours", tmp);
+	waitKey();
+	findContours(tmp, contours, hierarchy, CV_RETR_TREE, CV_CHAIN_APPROX_SIMPLE, Point(0, 0));
+	Mat classificationResult(1, CLASSES, CV_32F);
+	for (int i = 0; i < contours.size(); ++i) {
+		if (contourArea(contours[i]) > 100) {
+			tmp = original(boundingRect(contours[i]));
+			resize(tmp, scaledDown, scaledDown.size());
+			int j = 0;
+			for (int x = 0; x<SIZE; x++)
 			{
-				sample.at<float>(0, i++) = ((scaledDownImage.at<uchar>(x, y) == 255) ? 1 : 0);
+				for (int y = 0; y<SIZE; y++)
+				{
+					sample.at<float>(0, j++) = ((scaledDown.at<uchar>(x, y) == 255) ? 1 : 0);
+				}
 			}
+			model->predict(sample, classificationResult);
+			// find the class with maximum weightage.
+			int maxIndex = 0;
+			float value = 0.0f;
+			float maxValue = classificationResult.at<float>(0, 0);
+			for (int index = 1; index<CLASSES; index++)
+			{
+				value = classificationResult.at<float>(0, index);
+				if (value>maxValue)
+				{
+					maxValue = value;
+					maxIndex = index;
+				}
+			}
+			std::cout << "Prediction: " << get(maxIndex) << std::endl;
+			imshow("Contours", tmp);
+			waitKey();
 		}
-		int result = model->predict(sample);
-		std::cout << "Prediction: " << get(result) << std::endl;
 	}
 }
 
 int main(int argc, char *argv[])
 {
-	readData("data", CLASSES, SAMPLES);
-	createAndTestMLP();
-	//testMLP();
+	if (argc > 1) {
+		testMLP(argv[1]);
+	} else {
+		readData("data", CLASSES, SAMPLES);
+		createAndTestMLP();
+	}
 	return 0;
 }
