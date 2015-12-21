@@ -18,19 +18,15 @@ using namespace cv::ml;
 #endif
 
 #define SIZE 32											// Size (Width & Height) of image
-#define ATTRIBUTES SIZE*SIZE							// Number of attributes
-#define CLASSES 62										// Number of classes
+#define ATTRIBUTES SIZE*SIZE							// Number of attributes (pixels)
+#define CLASSES 62										// Number of classes (26 letters -upper/lower- and 10 digits)
 #define SAMPLES 200										// Number of sample by class
 #define TOTAL_SAMPLES CLASSES*SAMPLES					// Total number of samples
-#define TRAINING_SAMPLES (int)(TOTAL_SAMPLES*0.7)		// Number of samples in training dataset
-#define TEST_SAMPLES TOTAL_SAMPLES-TRAINING_SAMPLES		// Number of samples in test dataset
+#define TRAINING_SAMPLES (int)(TOTAL_SAMPLES*0.7)		// Number of samples in training dataset (70% of all data)
+#define TEST_SAMPLES TOTAL_SAMPLES-TRAINING_SAMPLES		// Number of samples in test dataset (30% ...)
 
 int train_errors = 0, test_errors = 0;
 
-/********************************************************************************
-  This function will read the csv files(training and test dataset) and convert them
-  into two matrices.
- ********************************************************************************/
 void readDataset(std::string filename, Mat &data, Mat &classes, int total_samples)
 {
 	std::cout << "Reading dataset " << filename << '\n';
@@ -39,19 +35,16 @@ void readDataset(std::string filename, Mat &data, Mat &classes, int total_sample
 	//open the file
 	FILE* inputfile = fopen(filename.c_str(), "r");
 
-	//read each row of the csv file
+	//read each row of the file
 	for (int row = 0; row < total_samples; row++)
 	{
 		//for each attribute in the row
 		for (int col = 0; col <= ATTRIBUTES; col++)
 		{
-			//if its the pixel value.
-			if (col < ATTRIBUTES) {
+			if (col < ATTRIBUTES) { // pixel value
 				fscanf(inputfile, "%f,", &pixelvalue);
 				data.at<float>(row, col) = pixelvalue;
-			}//if its the label
-			else if (col == ATTRIBUTES) {
-				//make the value of label column in that row as 1.
+			} else if (col == ATTRIBUTES) { // the label
 				fscanf(inputfile, "%i", &label);
 				classes.at<float>(row, label) = 1.0;
 			}
@@ -61,91 +54,23 @@ void readDataset(std::string filename, Mat &data, Mat &classes, int total_sample
 	std::cout << "Reading finished!\n";
 }
 
-bool cropImage(Mat &originalImage, Mat &croppedImage)
-{
-	int row = originalImage.rows;
-	int col = originalImage.cols;
-	int tlx, tly, bry, brx;//t=top r=right b=bottom l=left
-	tlx = tly = bry = brx = 0;
-	int flag = 0;
-	/**************************top edge***********************/
-	for (int x = 1; x<row; x++)
-	{
-		for (int y = 0; y<col; y++)
-		{
-			if (originalImage.at<uchar>(x, y) == 0)
-			{
-				flag = 1;
-				tly = x;
-				break;
-			}
-		}
-		if (flag == 1)
-		{
-			flag = 0;
-			break;
+bool cropImage(Mat &input, Mat &output) {
+	// vector with all non-black point positions
+	std::vector<cv::Point> pixels;
+	pixels.reserve(input.rows*input.cols);
+
+	for (int i = 0; i < input.rows; ++i) {
+		for (int j = 0; j < input.cols; ++j) {
+			if (input.at<uchar>(j, i) != 255)
+				pixels.push_back(cv::Point(i,j));
 		}
 	}
-	/*******************bottom edge***********************************/
-	for (int x = row - 1; x>0; x--)
-	{
-		for (int y = 0; y<col; y++)
-		{
-			if (originalImage.at<uchar>(x, y) == 0)
-			{
-				flag = 1;
-				bry = x;
-				break;
-			}
-		}
-		if (flag == 1)
-		{
-			flag = 0;
-			break;
-		}
-	}
-	/*************************left edge*******************************/
-	for (int y = 0; y<col; y++)
-	{
-		for (int x = 0; x<row; x++)
-		{
-			if (originalImage.at<uchar>(x, y) == 0)
-			{
-				flag = 1;
-				tlx = y;
-				break;
-			}
-		}
-		if (flag == 1)
-		{
-			flag = 0;
-			break;
-		}
-	}
-	/**********************right edge***********************************/
-	for (int y = col - 1; y>0; y--)
-	{
-		for (int x = 0; x<row; x++)
-		{
-			if (originalImage.at<uchar>(x, y) == 0)
-			{
-				flag = 1;
-				brx = y;
-				break;
-			}
-		}
-		if (flag == 1)
-		{
-			flag = 0;
-			break;
-		}
-	}
-	int width = brx - tlx;
-	int height = bry - tly;
-	if (width == 0 || height == 0)
-		return false;
-	croppedImage = originalImage(Rect(tlx, tly, width, height));
-	return true;
+
+	// create bounding rect around those points
+	cv::Rect crop = cv::boundingRect(pixels);
+
+	output = input(crop);
+	return (crop.width != 0 && crop.height != 0);
 }
 
 std::string getFilename(int i, int j) {
@@ -251,9 +176,9 @@ void createAndTestMLP() {
 	// Test the generated model with the test samples.
 	Mat test_sample;
 	//count of correct classifications
-	int correct_class = 0;
+	int correct = 0;
 	//count of wrong classifications
-	int wrong_class = 0;
+	int wrong = 0;
 
 	// for each sample in the test set.
 	for (int tsample = 0; tsample < TEST_SAMPLES-test_errors; tsample++) {
@@ -281,7 +206,19 @@ void createAndTestMLP() {
 			}
 		}
 
-		char c = get(maxIndex);
+		if (maxIndex >= 36) {
+			if (test_set_classifications.at<float>(tsample, maxIndex) != 1.0f && test_set_classifications.at<float>(tsample, maxIndex - 26))
+				wrong++;
+			else
+				correct++;
+		} else {
+			if (test_set_classifications.at<float>(tsample, maxIndex) != 1.0f && test_set_classifications.at<float>(tsample, maxIndex + 26))
+				wrong++;
+			else
+				correct++;
+		}
+
+		/*char c = get(maxIndex);
 
 		std::cout << "Testing sample # " << tsample << " -> result: " << c;
 
@@ -312,15 +249,15 @@ void createAndTestMLP() {
 			// otherwise correct
 			correct_class++;
 		}
-		std::cout << '\n';
+		std::cout << '\n';*/
 	}
 
-	double correct_rate = correct_class * 100.0 / (TEST_SAMPLES-test_errors);
-	double wrong_rate = wrong_class * 100.0 / (TEST_SAMPLES-test_errors);
+	double correct_rate = correct * 100.0 / (TEST_SAMPLES-test_errors);
+	double wrong_rate = wrong * 100.0 / (TEST_SAMPLES-test_errors);
 	std::cout << "\nResults:";
-	std::cout << "\n\tCorrect: " << correct_class << " (";
+	std::cout << "\n\tCorrect: " << correct << " (";
 	std::cout << correct_rate << "%)";
-	std::cout << "\n\tWrong: " << wrong_class << " (";
+	std::cout << "\n\tWrong: " << wrong << " (";
 	std::cout << wrong_rate << "%)\n\n";
 }
 
