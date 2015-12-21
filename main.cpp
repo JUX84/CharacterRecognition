@@ -206,19 +206,7 @@ void createAndTestMLP() {
 			}
 		}
 
-		if (maxIndex >= 36) {
-			if (test_set_classifications.at<float>(tsample, maxIndex) != 1.0f && test_set_classifications.at<float>(tsample, maxIndex - 26))
-				wrong++;
-			else
-				correct++;
-		} else {
-			if (test_set_classifications.at<float>(tsample, maxIndex) != 1.0f && test_set_classifications.at<float>(tsample, maxIndex + 26))
-				wrong++;
-			else
-				correct++;
-		}
-
-		/*char c = get(maxIndex);
+		char c = get(maxIndex);
 
 		std::cout << "Testing sample # " << tsample << " -> result: " << c;
 
@@ -237,19 +225,19 @@ void createAndTestMLP() {
 					std::cout << " instead of " << tmp;
 					if (c == tmp - 32 || c == tmp + 32) {
 						std::cout << " - OK !";
-						correct_class++;
+						correct++;
 					} else {
 						// if they differ more than floating point error => wrong class
-						wrong_class++;
+						wrong++;
 					}
 					break;
 				}
 			}
 		} else {
 			// otherwise correct
-			correct_class++;
+			correct++;
 		}
-		std::cout << '\n';*/
+		std::cout << '\n';
 	}
 
 	double correct_rate = correct * 100.0 / (TEST_SAMPLES-test_errors);
