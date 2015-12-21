@@ -20,42 +20,33 @@ using namespace cv::ml;
 #define SIZE 32											// Size (Width & Height) of image
 #define ATTRIBUTES SIZE*SIZE							// Number of attributes (pixels)
 #define CLASSES 62										// Number of classes (26 letters -upper/lower- and 10 digits)
-#define SAMPLES 200										// Number of sample by class
+#define SAMPLES 500										// Number of sample by class
 #define TOTAL_SAMPLES CLASSES*SAMPLES					// Total number of samples
 #define TRAINING_SAMPLES (int)(TOTAL_SAMPLES*0.7)		// Number of samples in training dataset (70% of all data)
 #define TEST_SAMPLES TOTAL_SAMPLES-TRAINING_SAMPLES		// Number of samples in test dataset (30% ...)
 
 int train_errors = 0, test_errors = 0;
 
-void readDataset(std::string filename, Mat &data, Mat &classes, int total_samples)
-{
+void readDataset(std::string filename, Mat &data, Mat &classes) {
 	std::cout << "Reading dataset " << filename << '\n';
-	int label;
-	float pixelvalue;
-	//open the file
-	FILE* inputfile = fopen(filename.c_str(), "r");
 
-	//read each row of the file
-	for (int row = 0; row < total_samples; row++)
-	{
-		//for each attribute in the row
-		for (int col = 0; col <= ATTRIBUTES; col++)
-		{
-			if (col < ATTRIBUTES) { // pixel value
-				fscanf(inputfile, "%f,", &pixelvalue);
-				data.at<float>(row, col) = pixelvalue;
-			} else if (col == ATTRIBUTES) { // the label
-				fscanf(inputfile, "%i", &label);
-				classes.at<float>(row, label) = 1.0;
-			}
+	std::string line;
+	std::ifstream file(filename);
+
+	if (file.is_open()) {
+		int i = 0;
+		while (getline(file, line)) {
+			int j = 0;
+			for (; j < ATTRIBUTES; j++)
+				data.at<float>(i, j) = (line[j] == '1' ? 1.f : 0.f);
+			classes.at<float>(i++, std::stoi(line.substr(j))) = 1.f;
 		}
 	}
-	fclose(inputfile);
+	file.close();
 	std::cout << "Reading finished!\n";
 }
 
-bool cropImage(Mat &input, Mat &output) {
-	// vector with all non-black point positions
+void cropImage(Mat &input, Mat &output) {
 	std::vector<cv::Point> pixels;
 	pixels.reserve(input.rows*input.cols);
 
@@ -66,11 +57,9 @@ bool cropImage(Mat &input, Mat &output) {
 		}
 	}
 
-	// create bounding rect around those points
 	cv::Rect crop = cv::boundingRect(pixels);
 
 	output = input(crop);
-	return (crop.width != 0 && crop.height != 0);
 }
 
 std::string getFilename(int i, int j) {
@@ -85,20 +74,20 @@ std::string getFilename(int i, int j) {
 		+ ".png";
 }
 
-void readData(std::string path, int samples_nb1, int samples_nb2) {
+void readData(std::string path, int classes, int samples) {
 	std::cout << "Reading data from " << path << "/\n";
 	std::ofstream training("training.dat");
 	std::ofstream test("test.dat");
-	for (int i = 1; i <= samples_nb1; ++i) {
-		for (int j = 1; j <= samples_nb2; ++j) {
+	for (int i = 1; i <= classes; ++i) {
+		for (int j = 1; j <= samples; ++j) {
 			std::string imagePath = path + PATH_SEPARATOR + getFilename(i, j);
-			//std::cout << imagePath << std::endl;
 			Mat img = imread(imagePath, 0);
-			Mat output;
-			GaussianBlur(img, output, Size(5, 5), 0);
-			threshold(output, output, 50, 255, 0);
-			if (!cropImage(output, output)) {
-				if (j <= (int)(samples_nb2*0.7))
+			Mat tmp;
+			GaussianBlur(img, tmp, Size(5, 5), 0);
+			threshold(tmp, tmp, 50, 255, 0);
+			cropImage(tmp, tmp);
+			if (tmp.cols == 0 || tmp.rows == 0) {
+				if (j <= (int)(samples*0.7))
 					++train_errors;
 				else
 					++test_errors;
@@ -106,18 +95,18 @@ void readData(std::string path, int samples_nb1, int samples_nb2) {
 				continue;
 			}
 			Mat scaledDownImage(SIZE, SIZE, CV_16U, Scalar(0));
-			resize(output, scaledDownImage, scaledDownImage.size());
+			resize(tmp, scaledDownImage, scaledDownImage.size());
 			for (int x = 0; x<SIZE; x++)
 			{
 				for (int y = 0; y<SIZE; y++)
 				{
-					if (j <= (int)(samples_nb2*0.7))
-						training << ((scaledDownImage.at<uchar>(x, y) == 255) ? 1 : 0) << ",";
+					if (j <= (int)(samples*0.7))
+						training << ((scaledDownImage.at<uchar>(x, y) == 255) ? 1 : 0);
 					else
-						test << ((scaledDownImage.at<uchar>(x, y) == 255) ? 1 : 0) << ",";
+						test << ((scaledDownImage.at<uchar>(x, y) == 255) ? 1 : 0);
 				}
 			}
-			if (j <= (int)(samples_nb2*0.7))
+			if (j <= (int)(samples*0.7))
 				training << (i - 1) << "\n";
 			else
 				test << (i - 1) << "\n";
@@ -129,11 +118,11 @@ void readData(std::string path, int samples_nb1, int samples_nb2) {
 }
 
 char get(int v) {
-	if (v < 10)
+	if (v < 10) // digits
 		return '0' + v;
-	if (v < 36)
+	if (v < 36) // upper-case characters
 		return 'A' + v - 10;
-	return 'a' + v - 36;
+	return 'a' + v - 36; // lower-case characters
 }
 
 void createAndTestMLP() {
@@ -145,8 +134,8 @@ void createAndTestMLP() {
 
 	Mat classificationResult(1, CLASSES, CV_32F);
 	//load the training and test data sets.
-	readDataset("training.dat", training_set, training_set_classifications, TRAINING_SAMPLES-train_errors);
-	readDataset("test.dat", test_set, test_set_classifications, TEST_SAMPLES-test_errors);
+	readDataset("training.dat", training_set, training_set_classifications);
+	readDataset("test.dat", test_set, test_set_classifications);
 
 	// define the structure for the neural network (MLP)
 	// The neural network has 3 layers.
@@ -196,7 +185,7 @@ void createAndTestMLP() {
 		int maxIndex = 0;
 		float value = 0.0f;
 		float maxValue = classificationResult.at<float>(0, 0);
-		for (int index = 1; index<CLASSES; index++)
+		for (int index = 0; index<CLASSES; index++)
 		{
 			value = classificationResult.at<float>(0, index);
 			if (value>maxValue)
@@ -260,12 +249,10 @@ void testMLP(std::string path) {
 		cvtColor(original, tmp, CV_BGR2GRAY);
 	GaussianBlur(original, tmp, Size(5, 5), 0);
 	threshold(tmp, tmp, 50, 255, 0);
-	imshow("Contours", tmp);
-	waitKey();
-	findContours(tmp, contours, hierarchy, CV_RETR_TREE, CV_CHAIN_APPROX_SIMPLE, Point(0, 0));
+	findContours(tmp, contours, hierarchy, CV_RETR_CCOMP, CV_CHAIN_APPROX_SIMPLE);
 	Mat classificationResult(1, CLASSES, CV_32F);
-	for (int i = 0; i < contours.size(); ++i) {
-		if (contourArea(contours[i]) > 100) {
+	for (int i = contours.size()-1; i >= 0; --i) {
+		if (hierarchy[i][3] != -1) {
 			tmp = original(boundingRect(contours[i]));
 			resize(tmp, scaledDown, scaledDown.size());
 			int j = 0;
@@ -281,7 +268,7 @@ void testMLP(std::string path) {
 			int maxIndex = 0;
 			float value = 0.0f;
 			float maxValue = classificationResult.at<float>(0, 0);
-			for (int index = 1; index<CLASSES; index++)
+			for (int index = 0; index<CLASSES; index++)
 			{
 				value = classificationResult.at<float>(0, index);
 				if (value>maxValue)
