@@ -50,15 +50,14 @@ void cropImage(Mat &input, Mat &output) {
 	std::vector<cv::Point> pixels;
 	pixels.reserve(input.rows*input.cols);
 
-	for (int i = 0; i < input.rows; ++i) {
-		for (int j = 0; j < input.cols; ++j) {
+	for (int j = 0; j < input.rows; ++j) {
+		for (int i = 0; i < input.cols; ++i) {
 			if (input.at<uchar>(j, i) != 255)
-				pixels.push_back(cv::Point(i,j));
+				pixels.push_back(Point(i, j));
 		}
 	}
 
-	cv::Rect crop = cv::boundingRect(pixels);
-
+	Rect crop = boundingRect(pixels);
 	output = input(crop);
 }
 
@@ -242,18 +241,22 @@ void testMLP(std::string path) {
 	Ptr<ANN_MLP> model = Algorithm::load<ANN_MLP>("ann_mlp.mdl");
 
 	Mat original = imread(path, 0), scaledDown(SIZE, SIZE, CV_16U, Scalar(0)), sample(1, ATTRIBUTES, CV_32F), tmp;
+	tmp = original.clone();
 	std::vector<std::vector<Point> > contours;
 	std::vector<Vec4i> hierarchy;
 	namedWindow("Contours", CV_WINDOW_AUTOSIZE);
-	if (original.type() != CV_8UC1)
-		cvtColor(original, tmp, CV_BGR2GRAY);
-	GaussianBlur(original, tmp, Size(5, 5), 0);
+	if (tmp.type() != CV_8UC1)
+		cvtColor(tmp, tmp, CV_BGR2GRAY);
+	GaussianBlur(tmp, tmp, Size(5, 5), 0);
 	threshold(tmp, tmp, 50, 255, 0);
 	findContours(tmp, contours, hierarchy, CV_RETR_CCOMP, CV_CHAIN_APPROX_SIMPLE);
 	Mat classificationResult(1, CLASSES, CV_32F);
 	for (int i = contours.size()-1; i >= 0; --i) {
 		if (hierarchy[i][3] != -1) {
 			tmp = original(boundingRect(contours[i]));
+			GaussianBlur(tmp, tmp, Size(5, 5), 0);
+			threshold(tmp, tmp, 50, 255, 0);
+			cropImage(tmp, tmp);
 			resize(tmp, scaledDown, scaledDown.size());
 			int j = 0;
 			for (int x = 0; x<SIZE; x++)
