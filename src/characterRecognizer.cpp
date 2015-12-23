@@ -53,9 +53,9 @@ void CharacterRecognizer::cropImage(cv::Mat& img) {
 
 void CharacterRecognizer::processData(std::string path, std::string trainingFilePath, std::string testingFilePath) {
 	Logger::log("Processing data from " + path + "/ to "
-			+ trainingFilePath + " and " + testingFilePath + "...");
-	std::ofstream trainingFile(trainingFilePath);
-	std::ofstream testingFile(testingFilePath);
+			+ trainingFilePath + ".dat and " + testingFilePath + ".dat ...");
+	std::ofstream trainingFile(trainingFilePath + ".dat");
+	std::ofstream testingFile(testingFilePath + ".dat");
 	for (int i = 1; i <= classes; ++i) {
 		for (int j = 1; j <= samples; ++j) {
 			std::string imagePath = path + PATH_SEPARATOR + getFilename(i, j);
@@ -89,7 +89,25 @@ void CharacterRecognizer::processData(std::string path, std::string trainingFile
 	}
 	trainingFile.close();
 	testingFile.close();
+	std::ofstream trainingNum(trainingFilePath + ".num");
+	std::ofstream testingNum(testingFilePath + ".num");
+	trainingNum << trainingSamples << '\n';
+	testingNum << testingSamples << '\n';
+	trainingNum.close();
+	testingNum.close();
 	Logger::log("Data processed!");
+}
+
+int preprocessDataset(std::string path) {
+	Logger::log("\tPreprocessing dataset from " + path + "...");
+
+	std::ifstream file(path);
+	int samplesNum;
+	file >> samplesNum;
+
+	Logger::log("\tDataset preprocessed!");
+
+	return samplesNum;
 }
 
 void CharacterRecognizer::processDataset(std::string path, cv::Mat& data, cv::Mat& results) {
@@ -113,12 +131,13 @@ void CharacterRecognizer::processDataset(std::string path, cv::Mat& data, cv::Ma
 }
 
 void CharacterRecognizer::trainModel(std::string path) {
-	Logger::log("Training model with data from " + path + "...");
+	Logger::log("Training model with data from " + path + ".dat ...");
 
+	trainingSamples = preprocessDataset(path + ".num");
 	trainingSet = cv::Mat(trainingSamples, attributes, CV_32F);
 	trainingSetClassifications = cv::Mat(trainingSamples, classes, CV_32F);
 
-	processDataset(path, trainingSet, trainingSetClassifications);
+	processDataset(path + ".dat", trainingSet, trainingSetClassifications);
 
 	cv::Mat layers(3, 1, CV_32S);
 	layers.at<int>(0, 0) = attributes;
@@ -157,10 +176,12 @@ void CharacterRecognizer::loadModel(std::string path) {
 
 void CharacterRecognizer::testModel(std::string path) {
 	Logger::log("Testing model with data from " + path + "...");
+
+	testingSamples = preprocessDataset(path + ".num");
 	testingSet = cv::Mat(testingSamples, attributes, CV_32F);
 	testingSetClassifications = cv::Mat(testingSamples, classes, CV_32F);
 	
-	processDataset("testing.dat", testingSet, testingSetClassifications);
+	processDataset(path + ".dat", testingSet, testingSetClassifications);
 
 	int correct = 0, wrong = 0, index, maxIndex, actualIndex;
 	float value, maxValue;

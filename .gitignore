@@ -3,6 +3,7 @@ data
 data2
 img
 *.dat
+*.num
 *.mdl
 CMakeCache.txt
 CMakeFiles

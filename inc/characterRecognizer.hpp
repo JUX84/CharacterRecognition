@@ -26,11 +26,11 @@ class CharacterRecognizer {
 		void processDataset(std::string, cv::Mat&, cv::Mat&);
 		void cropImage(cv::Mat&);
 	public:
-		CharacterRecognizer(int = 62, int = 500, int = 32);
-		void processData(std::string = "data", std::string = "training.dat", std::string = "testing.dat");
-		void trainModel(std::string = "training.dat");
+		CharacterRecognizer(int = 62, int = 50, int = 32);
+		void processData(std::string = "data", std::string = "training", std::string = "testing");
+		void trainModel(std::string = "training");
 		void saveModel(std::string = "ann_mlp.mdl");
 		void loadModel(std::string = "ann_mlp.mdl");
-		void testModel(std::string = "testing.dat");
+		void testModel(std::string = "testing");
 		void predictText(std::string = "img/text.png");
 };
