@@ -228,8 +228,52 @@ void CharacterRecognizer::testModel(std::string path) {
 			+ " (" + std::to_string(wrongRate) + "%)");
 }
 
+std::vector<std::vector<cv::Point> > CharacterRecognizer::sortContours(std::vector<std::vector<cv::Point> >& contours, std::vector<cv::Vec4i>& hierarchy) {
+	avgWidth = 0;
+	avgHeight = 0;
+	for (int i = 0; i < contours.size(); ++i) { // clean contours
+		if (hierarchy[i][3] == -1) {
+			contours.erase(contours.begin()+i);
+			hierarchy.erase(hierarchy.begin()+i);
+			--i;
+		} else {
+			cv::Rect rect = cv::boundingRect(contours[i]);
+			avgWidth += rect.width;
+			avgHeight += rect.height;
+		}
+	}
+	avgWidth /= contours.size();
+	avgHeight /= contours.size();
+	std::vector<std::vector<cv::Point> > ret;
+	while (contours.size() > 0) {
+		int minY = INT_MAX;
+		int minYHeight = 0;
+		for (int i = 0; i < contours.size(); ++i) {
+			cv::Rect rect = boundingRect(contours[i]);
+			if (rect.y < minY) {
+				minY = rect.y;
+				minYHeight = rect.height;
+			}
+		}
+		int index = 0;
+		int minX = INT_MAX;
+		for (int i = 0; i < contours.size(); ++i) {
+			cv::Rect rect = boundingRect(contours[i]);
+			if (rect.y < minY + minYHeight) {
+				if (rect.x < minX) {
+					minX = rect.x;
+					index = i;
+				}
+			}
+		}
+		ret.push_back(contours[index]);
+		contours.erase(contours.begin()+index);
+	}
+	return ret;
+}
+
 void CharacterRecognizer::predictText(std::string path) {
-	cv::Mat img = cv::imread(path, 0), tmp = img.clone(),
+	cv::Mat img = cv::imread(path, 0), tmp,
 		sample(1, attributes, CV_32F), scaled(size, size, CV_16U, cv::Scalar(0)),
 		classificationResult(1, classes, CV_32F);
 
@@ -239,35 +283,42 @@ void CharacterRecognizer::predictText(std::string path) {
 	int index, maxIndex;
 	float value, maxValue;
 
-	if (tmp.type() != CV_8UC1)
-		cv::cvtColor(tmp, tmp, CV_BGR2GRAY);
-	cv::GaussianBlur(tmp, tmp, cv::Size(5, 5), 0);
-	cv::threshold(tmp, tmp, 50, 255, 0);
+	if (img.type() != CV_8UC1)
+		cv::cvtColor(img, img, CV_BGR2GRAY);
+	cv::GaussianBlur(img, img, cv::Size(5, 5), 0);
+	cv::threshold(img, img, 50, 255, 0);
+	tmp = img.clone();
 	cv::findContours(tmp, contours, hierarchy, CV_RETR_CCOMP, CV_CHAIN_APPROX_SIMPLE);
-	for (int i = 0; i < contours.size(); ++i) {
-		if (hierarchy[i][3] != -1) {
-			tmp = img(cv::boundingRect(contours[i]));
-			cv::GaussianBlur(tmp, tmp, cv::Size(5, 5), 0);
-			cv::threshold(tmp, tmp, 50, 255, 0);
-			cropImage(tmp);
-			resize(tmp, scaled, scaled.size());
-			int j = 0;
-			for (int x = 0; x < size; ++x)
-				for (int y = 0; y < size; ++y)
-					sample.at<float>(0, j++) = ((scaled.at<uchar>(x, y) == 255) ? 1 : 0);
-			model->predict(sample, classificationResult);
-			maxIndex = 0;
-			maxValue = classificationResult.at<float>(0, 0);
-			for (index = 0; index < classes; ++index) {
-				value = classificationResult.at<float>(0, index);
-				if (value > maxValue) {
-					maxValue = value;
-					maxIndex = index;
-				}
+	std::vector<std::vector<cv::Point> > cleanContours = sortContours(contours, hierarchy);
+	std::string predicted;
+	int currentX = 0;
+	int currentY = 0;
+	for (int i = 0; i < cleanContours.size(); ++i) {
+		cv::Rect rect = cv::boundingRect(cleanContours[i]);
+		if (rect.x > currentX + avgWidth*2)
+			predicted += ' ';
+		if (rect.y > currentY + avgHeight)
+			predicted += '\n';
+		currentX = rect.x;
+		currentY = rect.y;
+		tmp = img(rect);
+		cropImage(tmp);
+		resize(tmp, scaled, scaled.size());
+		int j = 0;
+		for (int x = 0; x < size; ++x)
+			for (int y = 0; y < size; ++y)
+				sample.at<float>(0, j++) = ((scaled.at<uchar>(x, y) == 255) ? 1 : 0);
+		model->predict(sample, classificationResult);
+		maxIndex = 0;
+		maxValue = classificationResult.at<float>(0, 0);
+		for (index = 0; index < classes; ++index) {
+			value = classificationResult.at<float>(0, index);
+			if (value > maxValue) {
+				maxValue = value;
+				maxIndex = index;
 			}
-			std::string predicted;
-			predicted += getCharacter(maxIndex);
-			Logger::log("Predicted letter " + predicted);
 		}
+		predicted += getCharacter(maxIndex);
 	}
+	Logger::log("Predicted text below:\n" + predicted);
 }

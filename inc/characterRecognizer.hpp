@@ -9,24 +9,19 @@
 
 class CharacterRecognizer {
 	private:
-		int classes;
-		int samples;
-		int size;
-		int attributes;
-		int totalSamples;
-		int trainingSamples;
-		int testingSamples;
+		int classes, samples, size, attributes;
+		int totalSamples, trainingSamples, testingSamples;
+		int avgWidth, avgHeight;
 		cv::Ptr<cv::ml::ANN_MLP> model;
-		cv::Mat trainingSet;
-		cv::Mat trainingSetClassifications;
-		cv::Mat testingSet;
-		cv::Mat testingSetClassifications;
+		cv::Mat trainingSet, trainingSetClassifications;
+		cv::Mat testingSet, testingSetClassifications;
 		std::string getFilename(int, int);
 		char getCharacter(int);
 		void processDataset(std::string, cv::Mat&, cv::Mat&);
 		void cropImage(cv::Mat&);
+		std::vector<std::vector<cv::Point> > sortContours(std::vector<std::vector<cv::Point> >&, std::vector<cv::Vec4i>&);
 	public:
-		CharacterRecognizer(int = 62, int = 50, int = 32);
+		CharacterRecognizer(int = 62, int = 1016, int = 32);
 		void processData(std::string = "data", std::string = "training", std::string = "testing");
 		void trainModel(std::string = "training");
 		void saveModel(std::string = "ann_mlp.mdl");
