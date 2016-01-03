@@ -14,9 +14,9 @@ Il a été développé par *Mehdi MHIRI* et *Bastien DELAVIS* dans le cadre d'un
 
 Afin d'installer ce projet, effectuez les commandes suivantes:
 ```
-./extract.sh # permet d'extraire les données
-cmake . # va vérifier les dépendances puis créer le Makefile
-make # compilation du code
+./extract.sh	# Extrait les données compressées
+cmake .			# Vérifie qu'OpenCV est bien installé puis crée le Makefile
+make			# Compile le code source vers l'exécutable bin/CR
 ```
 
 ---
