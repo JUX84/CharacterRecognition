@@ -5,6 +5,7 @@ img
 *.dat
 *.num
 *.mdl
+!full.mdl
 cr.log
 CMakeCache.txt
 CMakeFiles
