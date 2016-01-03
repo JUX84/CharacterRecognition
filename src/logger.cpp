@@ -12,10 +12,13 @@ void Logger::init(std::string file_path) {
 }
 
 void Logger::log(std::string message) {
+
+#ifndef _WIN32
 	std::time_t time = std::time(nullptr);
 	char timestr[9];
 	if (std::strftime(timestr, sizeof(timestr), "%H:%M:%S", std::localtime(&time)))
 		std::cout << "[" << timestr << "] ";
+#endif
 	std::cout << message << '\n';
 	if (file.is_open())
 		file << message << '\n';
