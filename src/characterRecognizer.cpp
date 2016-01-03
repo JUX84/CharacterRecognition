@@ -71,6 +71,8 @@ void CharacterRecognizer::processData(std::string path, std::string trainingFile
 			std::string imagePath = path + PATH_SEPARATOR + getFilename(i, j);
 			cv::Mat img = cv::imread(imagePath, 0),
 				tmp(size, size, CV_16U, cv::Scalar(0));
+			if (img.type() != CV_8UC1)
+				cv::cvtColor(img, img, CV_BGR2GRAY);
 			cv::GaussianBlur(img, img, cv::Size(5, 5), 0);
 			cv::threshold(img, img, 50, 255, 0);
 			cropImage(img);

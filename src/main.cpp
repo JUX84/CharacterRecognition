@@ -34,6 +34,8 @@ int main(int argc, char *argv[])
 							if (i+1 < argc
 									&& argv[i+1][0] != '-')
 								targets[j+1] = argv[++i];
+							else
+								continue;
 							if (i+1 < argc
 									&& argv[i+1][0] != '-')
 								targets[j+2] = argv[++i];
