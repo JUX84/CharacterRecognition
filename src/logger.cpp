@@ -6,6 +6,8 @@
 std::ofstream Logger::file;
 
 void Logger::init(std::string file_path) {
+	if (file_path == "")
+		file_path = "cr.log"; //default value
 	file.open(file_path);
 }
 

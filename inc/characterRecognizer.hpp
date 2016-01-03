@@ -21,11 +21,11 @@ class CharacterRecognizer {
 		void cropImage(cv::Mat&);
 		std::vector<std::vector<cv::Point> > sortContours(std::vector<std::vector<cv::Point> >&, std::vector<cv::Vec4i>&);
 	public:
-		CharacterRecognizer(int = 62, int = 1016, int = 32);
-		void processData(std::string = "data", std::string = "training", std::string = "testing");
-		void trainModel(std::string = "training");
-		void saveModel(std::string = "ann_mlp.mdl");
-		void loadModel(std::string = "ann_mlp.mdl");
-		void testModel(std::string = "testing");
-		void predictText(std::string = "img/text.png");
+		CharacterRecognizer(int, int, int);
+		void processData(std::string, std::string, std::string);
+		void trainModel(std::string);
+		void saveModel(std::string);
+		void loadModel(std::string);
+		void testModel(std::string);
+		void predictText(std::string);
 };

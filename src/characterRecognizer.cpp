@@ -6,6 +6,9 @@
 
 CharacterRecognizer::CharacterRecognizer(int classes, int samples, int size) {
 	Logger::log("Initializing CharacterRecognizer...");
+	Logger::log("Classes = " + std::to_string(classes)
+			+ ", Samples = " + std::to_string(samples)
+			+ ", Size = " + std::to_string(size));
 	this->classes = classes;
 	this->samples = samples;
 	this->size = size;
@@ -52,6 +55,13 @@ void CharacterRecognizer::cropImage(cv::Mat& img) {
 }
 
 void CharacterRecognizer::processData(std::string path, std::string trainingFilePath, std::string testingFilePath) {
+	//default values
+	if (path == "")
+		path = "data";
+	if (trainingFilePath == "")
+		trainingFilePath = "training";
+	if (testingFilePath == "")
+		testingFilePath = "testing";
 	Logger::log("Processing data from " + path + "/ to "
 			+ trainingFilePath + ".dat and " + testingFilePath + ".dat ...");
 	std::ofstream trainingFile(trainingFilePath + ".dat");
@@ -131,6 +141,8 @@ void CharacterRecognizer::processDataset(std::string path, cv::Mat& data, cv::Ma
 }
 
 void CharacterRecognizer::trainModel(std::string path) {
+	if (path == "")
+		path = "training"; //default value
 	Logger::log("Training model with data from " + path + ".dat ...");
 
 	trainingSamples = preprocessDataset(path + ".num");
@@ -138,6 +150,8 @@ void CharacterRecognizer::trainModel(std::string path) {
 	trainingSetClassifications = cv::Mat(trainingSamples, classes, CV_32F);
 
 	processDataset(path + ".dat", trainingSet, trainingSetClassifications);
+	
+	Logger::log("Training model...");
 
 	cv::Mat layers(3, 1, CV_32S);
 	layers.at<int>(0, 0) = attributes;
@@ -160,12 +174,16 @@ void CharacterRecognizer::trainModel(std::string path) {
 }
 
 void CharacterRecognizer::saveModel(std::string path) {
+	if (path == "")
+		path = "ann_mlp.mdl";
 	Logger::log("Saving model...");
 	model->save(path);
 	Logger::log("Model saved!");
 }
 
 void CharacterRecognizer::loadModel(std::string path) {
+	if (path == "")
+		path = "ann_mlp.mdl";
 	Logger::log("Loading model...");
 	model = cv::ml::StatModel::load<cv::ml::ANN_MLP>(path);
 	if (model.empty())
@@ -175,6 +193,8 @@ void CharacterRecognizer::loadModel(std::string path) {
 }
 
 void CharacterRecognizer::testModel(std::string path) {
+	if (path == "")
+		path = "testing";
 	Logger::log("Testing model with data from " + path + "...");
 
 	testingSamples = preprocessDataset(path + ".num");
@@ -273,6 +293,8 @@ std::vector<std::vector<cv::Point> > CharacterRecognizer::sortContours(std::vect
 }
 
 void CharacterRecognizer::predictText(std::string path) {
+	if (path == "")
+		path = "img/text.png";
 	cv::Mat img = cv::imread(path, 0), tmp,
 		sample(1, attributes, CV_32F), scaled(size, size, CV_16U, cv::Scalar(0)),
 		classificationResult(1, classes, CV_32F);
