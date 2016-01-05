@@ -5,6 +5,7 @@
 #include <iostream>
 int main(int argc, char *argv[])
 {
+	/* help */
 	if (argc == 1) {
 		std::cout << "Usage (All arguments are optional):\n";
 		std::cout << "\t-log [file] -- logs to file (default: cr.log)\n";
@@ -16,9 +17,11 @@ int main(int argc, char *argv[])
 		std::cout << "\t-predict [image] -- predict text in image (default: img/text.png)\n";
 		std::cout << "\t-train [dataset] -- train from dataset (default: training(.num,.dat))\n";
 		std::cout << "\t-test [dataset] -- test using dataset (default: testing(.num,.dat)\n";
-		std::cout << "\t-process [folder] [train_dataset [test_dataset]]\n\t\t-- process images from folder to training and testing datasets\n";
+		std::cout << "\t-process [folder] [train_dataset test_dataset]]\n\t\t-- process images from folder to training and testing datasets\n";
 		return 1;
 	}
+
+	/* args handling */
 	std::vector<std::string> args = {"-log", "-classes", "-samples", "-size", "-train", "-save", "-test", "-load", "-predict", "-process"};
 	std::vector<bool> argsb = {false, false, false, false, false, false, false, false, false, false};
 	std::vector<std::string> targets = {"", "", "", "", "", "", "", "", "", "", "", ""};
@@ -32,23 +35,25 @@ int main(int argc, char *argv[])
 						targets[j] = argv[++i];
 						if (j == 9) {
 							if (i+1 < argc
-									&& argv[i+1][0] != '-')
+									&& argv[i+1][0] != '-'
+									&& i+2 < argc
+									&& argv[i+2][0] != '-') {
 								targets[j+1] = argv[++i];
-							else
-								continue;
-							if (i+1 < argc
-									&& argv[i+1][0] != '-')
 								targets[j+2] = argv[++i];
+							}
 						}
 					}
 				}
 			}
 		}
 	}
+
 	if (argsb[0])
 		Logger::init(targets[0]);
+
 	int classes = 62, samples = 200, size = 32; //default values
-	/*if (argsb[1] && targets[1] != "") // Changing the number of classes leads to wrong results
+	/* Changing the number of classes leads to wrong results
+	if (argsb[1] && targets[1] != "")
 		classes = std::stoi(targets[1]);*/
 	if (argsb[2] && targets[2] != "")
 		samples = std::stoi(targets[2]);
@@ -57,6 +62,8 @@ int main(int argc, char *argv[])
 		if (tmp == 16 || tmp == 32)
 			size = tmp;
 	}
+
+	/* Regardless of args order, we keep the same process order */
 	CharacterRecognizer CR(classes, samples, size);
 	if (argsb[9])
 		CR.processData(targets[9], targets[10], targets[11]);
@@ -70,6 +77,8 @@ int main(int argc, char *argv[])
 		CR.loadModel(targets[7]);
 	if (argsb[8])
 		CR.predictText(targets[8]);
+
 	Logger::stop();
+
 	return 0;
 }

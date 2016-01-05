@@ -4,18 +4,26 @@
 #include "characterRecognizer.hpp"
 #include "logger.hpp"
 
+#ifdef _WIN32
+#define PATH_SEPARATOR "\\"
+#else
+#define PATH_SEPARATOR "/"
+#endif
+
 CharacterRecognizer::CharacterRecognizer(int classes, int samples, int size) {
-	Logger::log("Initializing CharacterRecognizer...");
+	Logger::log("Initializing CharacterRecognizer with parameters:");
 	Logger::log("Classes = " + std::to_string(classes)
 			+ ", Samples = " + std::to_string(samples)
 			+ ", Size = " + std::to_string(size));
+
 	this->classes = classes;
 	this->samples = samples;
 	this->size = size;
 	attributes = size*size;
 	totalSamples = classes*samples;
-	trainingSamples = (int)(totalSamples*0.7);
-	testingSamples = totalSamples-trainingSamples;
+	trainingSamples = (int)(totalSamples*0.7); // 70% of the samples are used for training
+	testingSamples = totalSamples-trainingSamples; // Remaining 30% for testing
+
 	Logger::log("CharacterRecognizer initialized!");
 }
 
@@ -32,13 +40,20 @@ std::string CharacterRecognizer::getFilename(int i, int j) {
 }
 
 char CharacterRecognizer::getCharacter(int value) {
-	if (value < 10) // digits
+	if (value < 10) // Digits
 		return '0' + value;
-	if (value < 36) // upper-case characters
+
+	if (value < 36) // Upper-case characters
 		return 'A' + value - 10;
-	return 'a' + value - 36; // lower-case characters
+
+	return 'a' + value - 36; // Lower-case characters
 }
 
+/*
+ * Registers every pixel that is not white on the image
+ * and uses the vector to create a bounding rectangle.
+ * This gives us the cropped image
+ */
 void CharacterRecognizer::cropImage(cv::Mat& img) {
 	std::vector<cv::Point> pixels;
 	pixels.reserve(img.rows*img.cols);
@@ -55,17 +70,20 @@ void CharacterRecognizer::cropImage(cv::Mat& img) {
 }
 
 void CharacterRecognizer::processData(std::string path, std::string trainingFilePath, std::string testingFilePath) {
-	//default values
+	// Default values
 	if (path == "")
 		path = "data";
 	if (trainingFilePath == "")
 		trainingFilePath = "training";
 	if (testingFilePath == "")
 		testingFilePath = "testing";
+
 	Logger::log("Processing data from " + path + "/ to "
 			+ trainingFilePath + ".dat and " + testingFilePath + ".dat ...");
+
 	std::ofstream trainingFile(trainingFilePath + ".dat");
 	std::ofstream testingFile(testingFilePath + ".dat");
+
 	for (int i = 1; i <= classes; ++i) {
 		for (int j = 1; j <= samples; ++j) {
 			std::string imagePath = path + PATH_SEPARATOR + getFilename(i, j);
@@ -77,6 +95,10 @@ void CharacterRecognizer::processData(std::string path, std::string trainingFile
 			cv::threshold(img, img, 50, 255, 0);
 			cropImage(img);
 			if (img.size() == cv::Size(0, 0)) {
+				/*
+				 * threshold() returns a blank image
+				 * so cropImage() returns an empty image
+				 */
 				if (j <= (int)(samples*0.7))
 					--trainingSamples;
 				else
@@ -99,14 +121,19 @@ void CharacterRecognizer::processData(std::string path, std::string trainingFile
 				testingFile << (i-1) << '\n';
 		}
 	}
+
 	trainingFile.close();
 	testingFile.close();
+
 	std::ofstream trainingNum(trainingFilePath + ".num");
 	std::ofstream testingNum(testingFilePath + ".num");
+
 	trainingNum << trainingSamples << '\n';
 	testingNum << testingSamples << '\n';
+
 	trainingNum.close();
 	testingNum.close();
+
 	Logger::log("Data processed!");
 }
 
@@ -144,7 +171,8 @@ void CharacterRecognizer::processDataset(std::string path, cv::Mat& data, cv::Ma
 
 void CharacterRecognizer::trainModel(std::string path) {
 	if (path == "")
-		path = "training"; //default value
+		path = "training"; // Default value
+
 	Logger::log("Training model with data from " + path + ".dat ...");
 
 	trainingSamples = preprocessDataset(path + ".num");
@@ -177,17 +205,23 @@ void CharacterRecognizer::trainModel(std::string path) {
 
 void CharacterRecognizer::saveModel(std::string path) {
 	if (path == "")
-		path = "ann_mlp.mdl";
+		path = "ann_mlp.mdl"; // Default value
+
 	Logger::log("Saving model...");
+
 	model->save(path);
+
 	Logger::log("Model saved!");
 }
 
 void CharacterRecognizer::loadModel(std::string path) {
 	if (path == "")
-		path = "ann_mlp.mdl";
+		path = "ann_mlp.mdl"; // Default value
+
 	Logger::log("Loading model...");
+
 	model = cv::ml::StatModel::load<cv::ml::ANN_MLP>(path);
+
 	if (model.empty())
 		Logger::log("Error loading model!");
 	else
@@ -196,7 +230,8 @@ void CharacterRecognizer::loadModel(std::string path) {
 
 void CharacterRecognizer::testModel(std::string path) {
 	if (path == "")
-		path = "testing";
+		path = "testing"; // Default value
+
 	Logger::log("Testing model with data from " + path + "...");
 
 	testingSamples = preprocessDataset(path + ".num");
@@ -253,21 +288,28 @@ void CharacterRecognizer::testModel(std::string path) {
 std::vector<std::vector<cv::Point> > CharacterRecognizer::sortContours(std::vector<std::vector<cv::Point> >& contours, std::vector<cv::Vec4i>& hierarchy) {
 	avgWidth = 0;
 	avgHeight = 0;
-	for (int i = 0; i < contours.size(); ++i) { // clean contours
+
+	for (int i = 0; i < contours.size(); ++i) {
 		if (hierarchy[i][3] == -1) {
 			contours.erase(contours.begin()+i);
 			hierarchy.erase(hierarchy.begin()+i);
 			--i;
-		} else {
+		} else { // Keep only parent contours
 			cv::Rect rect = cv::boundingRect(contours[i]);
 			avgWidth += rect.width;
 			avgHeight += rect.height;
 		}
 	}
+
 	avgWidth /= contours.size();
 	avgHeight /= contours.size();
+
 	std::vector<std::vector<cv::Point> > ret;
 	while (contours.size() > 0) {
+		/*
+		 * This algorithm put the letters in the correct order
+		 * using their x and y coordinates
+		 */
 		int minY = INT_MAX;
 		int minYHeight = 0;
 		for (int i = 0; i < contours.size(); ++i) {
@@ -291,12 +333,14 @@ std::vector<std::vector<cv::Point> > CharacterRecognizer::sortContours(std::vect
 		ret.push_back(contours[index]);
 		contours.erase(contours.begin()+index);
 	}
+
 	return ret;
 }
 
 void CharacterRecognizer::predictText(std::string path) {
 	if (path == "")
-		path = "img/text.png";
+		path = "img/text.png"; // Default value
+
 	cv::Mat img = cv::imread(path, 0), tmp,
 		sample(1, attributes, CV_32F), scaled(size, size, CV_16U, cv::Scalar(0)),
 		classificationResult(1, classes, CV_32F);
@@ -312,8 +356,10 @@ void CharacterRecognizer::predictText(std::string path) {
 	cv::GaussianBlur(img, img, cv::Size(5, 5), 0);
 	cv::threshold(img, img, 50, 255, 0);
 	tmp = img.clone();
+
 	cv::findContours(tmp, contours, hierarchy, CV_RETR_CCOMP, CV_CHAIN_APPROX_SIMPLE);
 	std::vector<std::vector<cv::Point> > cleanContours = sortContours(contours, hierarchy);
+
 	std::string predicted;
 	int currentX = 0;
 	int currentY = 0;
@@ -344,5 +390,6 @@ void CharacterRecognizer::predictText(std::string path) {
 		}
 		predicted += getCharacter(maxIndex);
 	}
+
 	Logger::log("Predicted text below:\n" + predicted);
 }
