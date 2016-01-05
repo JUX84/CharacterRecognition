@@ -66,7 +66,10 @@ void CharacterRecognizer::cropImage(cv::Mat& img) {
 	}
 
 	cv::Rect crop = cv::boundingRect(pixels);
-	img = img(crop);
+	if (crop.width > 3 && crop.height > 10)
+		img = img(crop);
+	else
+		img = cv::Mat();
 }
 
 void CharacterRecognizer::processData(std::string path, std::string trainingFilePath, std::string testingFilePath) {
@@ -286,23 +289,13 @@ void CharacterRecognizer::testModel(std::string path) {
 }
 
 std::vector<std::vector<cv::Point> > CharacterRecognizer::sortContours(std::vector<std::vector<cv::Point> >& contours, std::vector<cv::Vec4i>& hierarchy) {
-	avgWidth = 0;
-	avgHeight = 0;
-
 	for (int i = 0; i < contours.size(); ++i) {
-		if (hierarchy[i][3] == -1) {
+		if (hierarchy[i][3] == -1) { // Remove child contours
 			contours.erase(contours.begin()+i);
 			hierarchy.erase(hierarchy.begin()+i);
 			--i;
-		} else { // Keep only parent contours
-			cv::Rect rect = cv::boundingRect(contours[i]);
-			avgWidth += rect.width;
-			avgHeight += rect.height;
 		}
 	}
-
-	avgWidth /= contours.size();
-	avgHeight /= contours.size();
 
 	std::vector<std::vector<cv::Point> > ret;
 	while (contours.size() > 0) {
@@ -363,16 +356,14 @@ void CharacterRecognizer::predictText(std::string path) {
 	std::string predicted;
 	int currentX = 0;
 	int currentY = 0;
+	int currentWidth = 0;
+	int currentHeight = 0;
 	for (int i = 0; i < cleanContours.size(); ++i) {
 		cv::Rect rect = cv::boundingRect(cleanContours[i]);
-		if (rect.x > currentX + avgWidth*2)
-			predicted += ' ';
-		if (rect.y > currentY + avgHeight)
-			predicted += '\n';
-		currentX = rect.x;
-		currentY = rect.y;
 		tmp = img(rect);
 		cropImage(tmp);
+		if (tmp.size() == cv::Size(0, 0))
+			continue;
 		resize(tmp, scaled, scaled.size());
 		int j = 0;
 		for (int x = 0; x < size; ++x)
@@ -388,6 +379,16 @@ void CharacterRecognizer::predictText(std::string path) {
 				maxIndex = index;
 			}
 		}
+
+		if (rect.x > currentX + std::max(currentWidth, rect.width)*1.5 && i != 0)
+			predicted += ' ';
+		if (rect.y > currentY + currentHeight && i != 0)
+			predicted += '\n';
+		currentX = rect.x;
+		currentY = rect.y;
+		currentWidth = rect.width;
+		currentHeight = rect.height;
+
 		predicted += getCharacter(maxIndex);
 	}
 

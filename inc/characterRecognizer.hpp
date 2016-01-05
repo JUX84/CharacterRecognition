@@ -5,7 +5,6 @@ class CharacterRecognizer {
 	private:
 		int classes, samples, size, attributes;
 		int totalSamples, trainingSamples, testingSamples;
-		int avgWidth, avgHeight; /* Average character width and height (used for letters order when predicting text) */
 		cv::Ptr<cv::ml::ANN_MLP> model;
 		cv::Mat trainingSet, trainingSetClassifications;
 		cv::Mat testingSet, testingSetClassifications;
