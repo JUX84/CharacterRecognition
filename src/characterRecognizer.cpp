@@ -140,7 +140,7 @@ void CharacterRecognizer::processData(std::string path, std::string trainingFile
 	Logger::log("Data processed!");
 }
 
-int preprocessDataset(std::string path) {
+int CharacterRecognizer::preprocessDataset(std::string path) {
 	Logger::log("\tPreprocessing dataset from " + path + "...");
 
 	std::ifstream file(path);

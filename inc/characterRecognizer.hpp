@@ -10,6 +10,7 @@ class CharacterRecognizer {
 		cv::Mat testingSet, testingSetClassifications;
 		std::string getFilename(int, int);
 		char getCharacter(int); /* model->predict returns an int, this function returns the corresponding character */
+		int preprocessDataset(std::string);
 		void processDataset(std::string, cv::Mat&, cv::Mat&);
 		void cropImage(cv::Mat&);
 		std::vector<std::vector<cv::Point> > sortContours(std::vector<std::vector<cv::Point> >&, std::vector<cv::Vec4i>&); /* Puts letters in correct order when predicting text */
